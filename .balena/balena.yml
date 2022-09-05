@@ -1,0 +1,6 @@
+---
+build-variables:
+  services:
+    main:
+      # https://nuitka.net/
+      - COMPILE_CODE=1

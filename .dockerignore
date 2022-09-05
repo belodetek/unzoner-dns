@@ -1,0 +1,5 @@
+**
+!balena.yml
+!Dockerfile**
+!requirements.txt
+!src/*.py

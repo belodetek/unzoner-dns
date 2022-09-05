@@ -1,0 +1,66 @@
+# --- build stage
+FROM balenalib/%%BALENA_ARCH%%-python:3.10-build AS build
+
+LABEL maintainer=team@belodetek.io
+
+# https://www.balena.io/docs/learn/more/masterclasses/cli-masterclass/#82-build-time-variables
+ARG COMPILE_CODE
+
+RUN install_packages \
+    cmake \
+    python3-venv
+
+WORKDIR /root
+
+ENV VIRTUAL_ENV=/root/venv3
+
+RUN python3 -m venv $VIRTUAL_ENV
+
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+COPY requirements.txt .
+
+RUN pip3 install --upgrade pip setuptools wheel \
+    && pip3 install --upgrade -r requirements.txt
+
+WORKDIR /root/build/src
+
+COPY src .
+
+RUN if [ "$COMPILE_CODE" = '1' ]; then \
+    install_packages ccache \
+    && pip3 install --upgrade \
+    nuitka \
+    ordered-set \
+    patchelf \
+    && nuitka3 \
+    --remove-output \
+    --assume-yes-for-downloads \
+    --output-dir=$(uname -m) \
+    --plugin-enable=pylint-warnings \
+    --standalone dnsserver.py; fi
+
+
+# --- runtime
+FROM balenalib/%%BALENA_ARCH%%-python:3.10
+
+LABEL maintainer=team@belodetek.io
+
+ENV VIRTUAL_ENV /root/venv3
+
+ENV PATH "$VIRTUAL_ENV/bin:$PATH"
+
+COPY --from=build /root/venv3/ /root/venv3/
+COPY --from=build /root/build/ /root/build/
+
+RUN install_packages \
+    curl \
+    dnsutils \
+    jq \
+    net-tools
+
+WORKDIR /root/build/src
+
+RUN if [ "$COMPILE_CODE" = '1' ]; then rm -f *.{py,txt}; fi
+
+CMD ["sh", "-c", "$(uname -m)/dnsserver.dist/dnsserver || python3 dnsserver.py"]
